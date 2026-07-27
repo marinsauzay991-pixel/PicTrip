@@ -1,0 +1,495 @@
+// ============================================================
+// PicTrip — Globe + Auth + Stockage local (IndexedDB)
+// ============================================================
+
+import * as db from "./db.js";
+
+let currentUser = null;
+let trips = [];
+const allMarkers = [];
+let mapInstance = null;
+
+// ============================================================
+// Auth
+// ============================================================
+
+const authScreen = document.getElementById("auth-screen");
+const appDiv = document.getElementById("app");
+const loginForm = document.getElementById("login-form");
+const signupForm = document.getElementById("signup-form");
+const authError = document.getElementById("auth-error");
+const switchToSignup = document.getElementById("switch-to-signup");
+const switchToLogin = document.getElementById("switch-to-login");
+const userBtn = document.getElementById("user-btn");
+const userMenu = document.getElementById("user-menu");
+const userMenuName = document.getElementById("user-menu-name");
+const userMenuEmail = document.getElementById("user-menu-email");
+const logoutBtn = document.getElementById("logout-btn");
+
+function showAuthError(msg) {
+  authError.textContent = msg;
+  authError.classList.remove("hidden");
+}
+
+function hideAuthError() {
+  authError.classList.add("hidden");
+}
+
+switchToSignup.addEventListener("click", () => {
+  loginForm.classList.add("hidden");
+  signupForm.classList.remove("hidden");
+  switchToSignup.classList.add("hidden");
+  switchToLogin.classList.remove("hidden");
+  hideAuthError();
+});
+
+switchToLogin.addEventListener("click", () => {
+  signupForm.classList.add("hidden");
+  loginForm.classList.remove("hidden");
+  switchToLogin.classList.add("hidden");
+  switchToSignup.classList.remove("hidden");
+  hideAuthError();
+});
+
+loginForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  hideAuthError();
+  const email = document.getElementById("login-email").value;
+  const password = document.getElementById("login-password").value;
+
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    showAuthError(data.error);
+    return;
+  }
+  currentUser = data;
+  enterApp();
+});
+
+signupForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  hideAuthError();
+  const username = document.getElementById("signup-username").value;
+  const email = document.getElementById("signup-email").value;
+  const password = document.getElementById("signup-password").value;
+
+  const res = await fetch("/api/auth/signup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, email, password }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    showAuthError(data.error);
+    return;
+  }
+  currentUser = data;
+  enterApp();
+});
+
+// Menu utilisateur
+userBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  userMenu.classList.toggle("hidden");
+});
+
+document.addEventListener("click", () => {
+  userMenu.classList.add("hidden");
+});
+
+logoutBtn.addEventListener("click", async () => {
+  await fetch("/api/auth/logout", { method: "POST" });
+  currentUser = null;
+  appDiv.classList.add("hidden");
+  authScreen.classList.remove("hidden");
+  userMenu.classList.add("hidden");
+});
+
+// Vérifier si déjà connecté
+async function checkAuth() {
+  const res = await fetch("/api/auth/me");
+  const data = await res.json();
+  if (data && data.id) {
+    currentUser = data;
+    enterApp();
+  }
+}
+
+function enterApp() {
+  authScreen.classList.add("hidden");
+  appDiv.classList.remove("hidden");
+  userMenuName.textContent = currentUser.username;
+  userMenuEmail.textContent = currentUser.email;
+  initMap();
+  loadTrips();
+}
+
+checkAuth();
+
+// ============================================================
+// Globe MapLibre
+// ============================================================
+
+function initMap() {
+  if (mapInstance) return;
+
+  mapInstance = new maplibregl.Map({
+    container: "map",
+    style: "https://tiles.openfreemap.org/styles/liberty",
+    center: [2.35, 48.86],
+    zoom: 1.5,
+    minZoom: 1.5,
+    maxPitch: 85,
+    maxZoom: 19,
+  });
+
+  mapInstance.on("style.load", () => {
+    mapInstance.setProjection({ type: "globe" });
+  });
+
+  mapInstance.addControl(new maplibregl.NavigationControl(), "top-right");
+
+  // Rotation lente
+  const AUTO_ROTATE_SPEED = 3;
+  let autoRotate = true;
+  let idleTimer = null;
+
+  function pauseRotation() {
+    clearTimeout(idleTimer);
+    autoRotate = false;
+    idleTimer = setTimeout(() => {
+      autoRotate = true;
+    }, 3000);
+  }
+
+  ["mousedown", "touchstart", "wheel"].forEach((evt) =>
+    mapInstance.getCanvas().addEventListener(evt, pauseRotation, { passive: true })
+  );
+  mapInstance.on("dragstart", pauseRotation);
+
+  let lastTime = performance.now();
+  function rotateGlobe(now) {
+    const dt = (now - lastTime) / 1000;
+    lastTime = now;
+    if (autoRotate && !mapInstance.isMoving()) {
+      const center = mapInstance.getCenter();
+      center.lng -= AUTO_ROTATE_SPEED * dt;
+      mapInstance.setCenter(center);
+    }
+    requestAnimationFrame(rotateGlobe);
+  }
+  requestAnimationFrame(rotateGlobe);
+}
+
+// ============================================================
+// Upload
+// ============================================================
+
+const addBtn = document.getElementById("add-btn");
+const tripsBtn = document.getElementById("trips-btn");
+const uploadPanel = document.getElementById("upload-panel");
+const tripNameInput = document.getElementById("trip-name-input");
+const tripSelectRow = document.getElementById("trip-select-row");
+const tripSelect = document.getElementById("trip-select");
+const dropZone = document.getElementById("drop-zone");
+const fileInput = document.getElementById("file-input");
+const fileList = document.getElementById("file-list");
+const placeBtn = document.getElementById("place-btn");
+const uploadStatus = document.getElementById("upload-status");
+const tripsPanel = document.getElementById("trips-panel");
+const tripsList = document.getElementById("trips-list");
+const tripsEmpty = document.getElementById("trips-empty");
+
+let pendingFiles = [];
+let uploadTargetTripId = null;
+
+function openPanel(panel) {
+  panel.classList.remove("hidden");
+}
+
+function closePanel(panel) {
+  panel.classList.add("hidden");
+}
+
+function closePanelAndReset(panel) {
+  closePanel(panel);
+  if (panel === uploadPanel) resetUploadState();
+}
+
+function resetUploadState() {
+  pendingFiles = [];
+  uploadTargetTripId = null;
+  fileList.classList.add("hidden");
+  fileList.innerHTML = "";
+  placeBtn.classList.add("hidden");
+  uploadStatus.classList.add("hidden");
+  uploadStatus.textContent = "";
+  dropZone.classList.remove("has-files");
+  tripNameInput.value = "";
+}
+
+document.querySelectorAll(".panel-close").forEach((btn) => {
+  btn.addEventListener("click", () => closePanelAndReset(btn.closest(".panel")));
+});
+document.querySelectorAll(".panel-backdrop").forEach((bg) => {
+  bg.addEventListener("click", () => closePanelAndReset(bg.closest(".panel")));
+});
+
+addBtn.addEventListener("click", () => {
+  uploadTargetTripId = null;
+  document.getElementById("trip-name-bubble").style.display = "";
+  populateTripSelect();
+  openPanel(uploadPanel);
+});
+
+tripsBtn.addEventListener("click", () => {
+  renderTripsPanel();
+  openPanel(tripsPanel);
+});
+
+// Drag & drop
+dropZone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  dropZone.classList.add("dragover");
+});
+dropZone.addEventListener("dragleave", () => {
+  dropZone.classList.remove("dragover");
+});
+dropZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropZone.classList.remove("dragover");
+  stageFiles(e.dataTransfer.files);
+});
+
+fileInput.addEventListener("change", () => {
+  stageFiles(fileInput.files);
+  fileInput.value = "";
+});
+
+function stageFiles(newFiles) {
+  const images = Array.from(newFiles).filter((f) => f.type.startsWith("image/"));
+  if (images.length === 0) return;
+
+  pendingFiles = pendingFiles.concat(images);
+  dropZone.classList.add("has-files");
+  fileList.classList.remove("hidden");
+  fileList.innerHTML = "";
+
+  pendingFiles.forEach((file) => {
+    const thumb = URL.createObjectURL(file);
+    const item = document.createElement("div");
+    item.className = "file-item";
+    item.innerHTML = `<img class="file-icon" src="${thumb}" alt="" /><span class="file-name">${file.name}</span>`;
+    fileList.appendChild(item);
+  });
+
+  placeBtn.classList.remove("hidden");
+  placeBtn.textContent = `Placer (${pendingFiles.length} photo${pendingFiles.length > 1 ? "s" : ""})`;
+}
+
+// Bouton Placer → lecture EXIF + stockage IndexedDB
+placeBtn.addEventListener("click", async () => {
+  if (pendingFiles.length === 0) return;
+
+  let tripId = uploadTargetTripId;
+
+  if (!tripId) {
+    const name = tripNameInput.value.trim();
+    const selectedExisting = tripSelect.value;
+
+    if (selectedExisting) {
+      tripId = selectedExisting;
+    } else if (name) {
+      const trip = await db.createTrip(name);
+      tripId = trip.id;
+    } else {
+      tripNameInput.focus();
+      tripNameInput.style.outline = "2px solid rgba(255,100,100,0.6)";
+      setTimeout(() => (tripNameInput.style.outline = ""), 1500);
+      return;
+    }
+  }
+
+  placeBtn.disabled = true;
+  placeBtn.textContent = "Placement en cours…";
+  uploadStatus.classList.remove("hidden");
+
+  let placed = 0;
+  let noGps = 0;
+
+  for (const file of pendingFiles) {
+    let coords = null;
+    try {
+      const exif = await exifr.parse(file, { gps: true, pick: ["latitude", "longitude"] });
+      if (exif && exif.latitude && exif.longitude) {
+        coords = { lat: exif.latitude, lng: exif.longitude };
+        placed++;
+      } else {
+        noGps++;
+      }
+    } catch {
+      noGps++;
+    }
+    await db.addPhoto(tripId, file, coords);
+  }
+
+  let msg = `${placed} localisée${placed > 1 ? "s" : ""}`;
+  if (noGps > 0) msg += ` · ${noGps} sans GPS`;
+  uploadStatus.textContent = msg;
+
+  await loadTrips();
+
+  if (placed > 0) {
+    setTimeout(() => {
+      closePanelAndReset(uploadPanel);
+      fitToTripMarkers(tripId);
+    }, 600);
+  }
+
+  placeBtn.disabled = false;
+  placeBtn.textContent = "Placer";
+  pendingFiles = [];
+});
+
+function populateTripSelect() {
+  if (trips.length === 0) {
+    tripSelectRow.classList.add("hidden");
+    return;
+  }
+  tripSelectRow.classList.remove("hidden");
+  tripSelect.innerHTML = '<option value="">— Nouveau voyage —</option>';
+  trips.forEach((t) => {
+    const opt = document.createElement("option");
+    opt.value = t.id;
+    opt.textContent = t.name;
+    tripSelect.appendChild(opt);
+  });
+}
+
+tripSelect.addEventListener("change", () => {
+  document.getElementById("trip-name-bubble").style.display = tripSelect.value ? "none" : "";
+});
+
+// ============================================================
+// Panneau voyages
+// ============================================================
+
+async function renderTripsPanel() {
+  tripsList.innerHTML = "";
+  tripsEmpty.style.display = trips.length === 0 ? "" : "none";
+
+  for (const trip of trips) {
+    const photos = await db.getPhotosByTrip(trip.id);
+    const gpsYes = photos.filter((p) => p.has_gps).length;
+    const gpsNo = photos.filter((p) => !p.has_gps).length;
+    const total = photos.length;
+    const coverPhoto = photos.find((p) => p.has_gps) || photos[0];
+
+    const card = document.createElement("div");
+    card.className = "trip-card";
+    card.addEventListener("click", () => {
+      closePanel(tripsPanel);
+      fitToTripMarkers(trip.id);
+    });
+
+    let thumbHtml;
+    if (coverPhoto) {
+      const url = db.getPhotoURL(coverPhoto);
+      thumbHtml = `<img class="trip-thumb" src="${url}" alt="" />`;
+    } else {
+      thumbHtml = `<div class="trip-thumb-placeholder">✈</div>`;
+    }
+
+    card.innerHTML = `
+      ${thumbHtml}
+      <div class="trip-info">
+        <div class="trip-name">${trip.name}</div>
+        <div class="trip-stats">
+          ${total} photo${total > 1 ? "s" : ""}
+          ${gpsYes > 0 ? ` · <span class="gps-yes">${gpsYes} localisée${gpsYes > 1 ? "s" : ""}</span>` : ""}
+          ${gpsNo > 0 ? ` · <span class="gps-no">${gpsNo} sans GPS</span>` : ""}
+        </div>
+      </div>
+    `;
+
+    const addMoreBtn = document.createElement("button");
+    addMoreBtn.className = "trip-add-btn";
+    addMoreBtn.innerHTML = "+";
+    addMoreBtn.title = "Ajouter des photos";
+    addMoreBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      closePanel(tripsPanel);
+      uploadTargetTripId = trip.id;
+      document.getElementById("trip-name-bubble").style.display = "none";
+      tripSelectRow.classList.add("hidden");
+      openPanel(uploadPanel);
+    });
+
+    card.appendChild(addMoreBtn);
+    tripsList.appendChild(card);
+  }
+}
+
+// ============================================================
+// Marqueurs
+// ============================================================
+
+async function placeAllMarkers() {
+  allMarkers.forEach((m) => m.remove());
+  allMarkers.length = 0;
+
+  const allPhotos = await db.getAllPhotos();
+  allPhotos
+    .filter((p) => p.has_gps)
+    .forEach((photo) => {
+      const url = db.getPhotoURL(photo);
+      const el = document.createElement("div");
+      el.className = "photo-marker";
+      el.style.backgroundImage = `url(${url})`;
+
+      const popup = new maplibregl.Popup({
+        offset: 25,
+        closeButton: true,
+        maxWidth: "320px",
+      }).setHTML(
+        `<div class="photo-popup">
+           <img src="${url}" alt="${photo.name}" />
+           <p>${photo.name}</p>
+         </div>`
+      );
+
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat([photo.lng, photo.lat])
+        .setPopup(popup)
+        .addTo(mapInstance);
+
+      marker._tripId = photo.tripId;
+      allMarkers.push(marker);
+    });
+}
+
+function fitToTripMarkers(tripId) {
+  const tripMarkers = allMarkers.filter((m) => m._tripId === tripId);
+  if (tripMarkers.length === 0) return;
+  if (tripMarkers.length === 1) {
+    mapInstance.flyTo({ center: tripMarkers[0].getLngLat(), zoom: 6, duration: 1500 });
+    return;
+  }
+  const bounds = new maplibregl.LngLatBounds();
+  tripMarkers.forEach((m) => bounds.extend(m.getLngLat()));
+  mapInstance.fitBounds(bounds, { padding: 80, duration: 1500 });
+}
+
+// ============================================================
+// Chargement des données
+// ============================================================
+
+async function loadTrips() {
+  trips = await db.getTrips();
+  if (mapInstance) await placeAllMarkers();
+}
