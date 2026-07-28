@@ -736,25 +736,33 @@ async function drawTripRoute(tripId) {
       lineCoords = [[from.lng, from.lat], [to.lng, to.lat]];
     }
 
-    mapInstance.addSource(sourceId, {
-      type: "geojson",
-      data: {
-        type: "Feature",
-        geometry: { type: "LineString", coordinates: lineCoords },
-      },
-    });
+    try {
+      if (mapInstance.getSource(sourceId)) mapInstance.removeSource(sourceId);
+      if (mapInstance.getLayer(layerId)) mapInstance.removeLayer(layerId);
 
-    mapInstance.addLayer({
-      id: layerId,
-      type: "line",
-      source: sourceId,
-      paint: {
-        "line-color": color,
-        "line-width": transport === "plane" ? 2.5 : 3.5,
-        "line-opacity": 0.85,
-        "line-dasharray": transport === "plane" ? [4, 4] : [1],
-      },
-    });
+      mapInstance.addSource(sourceId, {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          geometry: { type: "LineString", coordinates: lineCoords },
+        },
+      });
+
+      mapInstance.addLayer({
+        id: layerId,
+        type: "line",
+        source: sourceId,
+        paint: {
+          "line-color": color,
+          "line-width": transport === "plane" ? 3 : 4,
+          "line-opacity": 0.9,
+          "line-dasharray": transport === "plane" ? [4, 4] : [1],
+        },
+      });
+    } catch (err) {
+      console.error("Route draw error:", err);
+      continue;
+    }
 
     const midIdx = Math.floor(lineCoords.length / 2);
     const midPoint = lineCoords[midIdx];
@@ -809,7 +817,11 @@ function showTripOnGlobe(tripId, tripName) {
   });
 
   fitToTripMarkers(tripId);
-  drawTripRoute(tripId);
+
+  // Attendre que la carte soit stable avant de tracer les routes
+  mapInstance.once("idle", () => {
+    drawTripRoute(tripId);
+  });
 }
 
 function exitTripView() {
