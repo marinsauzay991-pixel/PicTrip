@@ -215,6 +215,52 @@ body {
   background: rgba(255, 100, 100, 0.15);
 }
 
+/* ─── Bouton retour (mode voyage) ─── */
+#back-btn {
+  position: fixed;
+  top: 32px;
+  left: 32px;
+  z-index: 20;
+}
+
+#trip-view-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  padding: 32px 90px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+#trip-view-overlay h1 {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.6);
+}
+
+/* ─── Bouton globe sur carte voyage ─── */
+.trip-globe-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(74, 163, 255, 0.3);
+  background: rgba(74, 163, 255, 0.1);
+  color: rgba(74, 163, 255, 0.8);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+  font-size: 16px;
+}
+
+.trip-globe-btn:hover {
+  background: rgba(74, 163, 255, 0.22);
+  color: rgba(74, 163, 255, 1);
+}
+
 /* ─── FAB Stack ─── */
 #fab-stack {
   position: fixed;

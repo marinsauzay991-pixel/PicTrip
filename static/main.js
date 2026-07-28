@@ -8,6 +8,7 @@ let currentUser = null;
 let trips = [];
 const allMarkers = [];
 let mapInstance = null;
+let inTripView = false;
 
 // ============================================================
 // Auth
@@ -442,6 +443,17 @@ async function renderTripsPanel() {
       renderTripsPanel();
     });
 
+    const globeBtn = document.createElement("button");
+    globeBtn.className = "trip-globe-btn";
+    globeBtn.innerHTML = "🌍";
+    globeBtn.title = "Voir sur le globe";
+    globeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      closePanel(tripsPanel);
+      showTripOnGlobe(trip.id, trip.name);
+    });
+
+    card.appendChild(globeBtn);
     card.appendChild(addMoreBtn);
     card.appendChild(deleteBtn);
     tripsList.appendChild(card);
@@ -585,6 +597,52 @@ function fitToTripMarkers(tripId) {
   tripMarkers.forEach((m) => bounds.extend(m.getLngLat()));
   mapInstance.fitBounds(bounds, { padding: 80, duration: 1500 });
 }
+
+// ============================================================
+// Mode voyage (globe filtré)
+// ============================================================
+
+const backBtn = document.getElementById("back-btn");
+const tripViewOverlay = document.getElementById("trip-view-overlay");
+const tripViewName = document.getElementById("trip-view-name");
+const fabStack = document.getElementById("fab-stack");
+const overlay = document.getElementById("overlay");
+
+function showTripOnGlobe(tripId, tripName) {
+  inTripView = true;
+  tripViewName.textContent = tripName;
+  tripViewOverlay.classList.remove("hidden");
+  backBtn.classList.remove("hidden");
+  fabStack.classList.add("hidden");
+  overlay.classList.add("hidden");
+  userBtn.classList.add("hidden");
+
+  allMarkers.forEach((m) => {
+    const el = m.getElement();
+    if (m._tripId === tripId) {
+      el.style.display = "";
+    } else {
+      el.style.display = "none";
+    }
+  });
+
+  fitToTripMarkers(tripId);
+}
+
+function exitTripView() {
+  inTripView = false;
+  tripViewOverlay.classList.add("hidden");
+  backBtn.classList.add("hidden");
+  fabStack.classList.remove("hidden");
+  overlay.classList.remove("hidden");
+  userBtn.classList.remove("hidden");
+
+  allMarkers.forEach((m) => {
+    m.getElement().style.display = "";
+  });
+}
+
+backBtn.addEventListener("click", exitTripView);
 
 // ============================================================
 // Chargement des données
