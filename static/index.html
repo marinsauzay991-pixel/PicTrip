@@ -90,6 +90,29 @@
       </div>
     </div>
 
+    <!-- Panneau : galerie photo d'un voyage -->
+    <div id="gallery-panel" class="panel hidden">
+      <div class="panel-backdrop"></div>
+      <div class="panel-card panel-card--gallery">
+        <button class="panel-close" aria-label="Fermer">&times;</button>
+        <div id="gallery-header">
+          <h2 id="gallery-title"></h2>
+          <span id="gallery-count"></span>
+        </div>
+        <div id="gallery-grid"></div>
+        <p id="gallery-empty" class="empty-msg">Aucune photo dans ce voyage.</p>
+      </div>
+    </div>
+
+    <!-- Lightbox plein écran -->
+    <div id="lightbox" class="hidden">
+      <button id="lightbox-close" aria-label="Fermer">&times;</button>
+      <button id="lightbox-prev" aria-label="Précédent">&#8249;</button>
+      <button id="lightbox-next" aria-label="Suivant">&#8250;</button>
+      <img id="lightbox-img" src="" alt="" />
+      <div id="lightbox-caption"></div>
+    </div>
+
     <!-- Panneau : ajouter des photos -->
     <div id="upload-panel" class="panel hidden">
       <div class="panel-backdrop"></div>

@@ -394,7 +394,7 @@ async function renderTripsPanel() {
     card.className = "trip-card";
     card.addEventListener("click", () => {
       closePanel(tripsPanel);
-      fitToTripMarkers(trip.id);
+      openGallery(trip.id, trip.name);
     });
 
     let thumbHtml;
@@ -447,6 +447,94 @@ async function renderTripsPanel() {
     tripsList.appendChild(card);
   }
 }
+
+// ============================================================
+// Galerie photo
+// ============================================================
+
+const galleryPanel = document.getElementById("gallery-panel");
+const galleryGrid = document.getElementById("gallery-grid");
+const galleryTitle = document.getElementById("gallery-title");
+const galleryCount = document.getElementById("gallery-count");
+const galleryEmpty = document.getElementById("gallery-empty");
+
+const lightbox = document.getElementById("lightbox");
+const lightboxImg = document.getElementById("lightbox-img");
+const lightboxCaption = document.getElementById("lightbox-caption");
+const lightboxClose = document.getElementById("lightbox-close");
+const lightboxPrev = document.getElementById("lightbox-prev");
+const lightboxNext = document.getElementById("lightbox-next");
+
+let galleryPhotos = [];
+let lightboxIndex = 0;
+
+async function openGallery(tripId, tripName) {
+  const photos = await db.getPhotosByTrip(tripId);
+  galleryPhotos = photos;
+
+  galleryTitle.textContent = tripName;
+  galleryCount.textContent = `${photos.length} photo${photos.length > 1 ? "s" : ""}`;
+  galleryEmpty.style.display = photos.length === 0 ? "" : "none";
+  galleryGrid.innerHTML = "";
+
+  photos.forEach((photo, index) => {
+    const url = db.getPhotoURL(photo);
+    const item = document.createElement("div");
+    item.className = "gallery-item";
+    item.innerHTML = `
+      <img src="${url}" alt="${photo.name}" />
+      <div class="gps-badge ${photo.has_gps ? "yes" : "no"}">${photo.has_gps ? "📍" : "—"}</div>
+    `;
+    item.addEventListener("click", () => openLightbox(index));
+    galleryGrid.appendChild(item);
+  });
+
+  openPanel(galleryPanel);
+}
+
+function openLightbox(index) {
+  if (galleryPhotos.length === 0) return;
+  lightboxIndex = index;
+  updateLightbox();
+  lightbox.classList.remove("hidden");
+}
+
+function closeLightbox() {
+  lightbox.classList.add("hidden");
+}
+
+function updateLightbox() {
+  const photo = galleryPhotos[lightboxIndex];
+  const url = db.getPhotoURL(photo);
+  lightboxImg.src = url;
+  lightboxCaption.textContent = `${photo.name}  ·  ${lightboxIndex + 1} / ${galleryPhotos.length}`;
+  lightboxPrev.style.display = galleryPhotos.length > 1 ? "" : "none";
+  lightboxNext.style.display = galleryPhotos.length > 1 ? "" : "none";
+}
+
+lightboxClose.addEventListener("click", closeLightbox);
+lightbox.addEventListener("click", (e) => {
+  if (e.target === lightbox) closeLightbox();
+});
+
+lightboxPrev.addEventListener("click", (e) => {
+  e.stopPropagation();
+  lightboxIndex = (lightboxIndex - 1 + galleryPhotos.length) % galleryPhotos.length;
+  updateLightbox();
+});
+
+lightboxNext.addEventListener("click", (e) => {
+  e.stopPropagation();
+  lightboxIndex = (lightboxIndex + 1) % galleryPhotos.length;
+  updateLightbox();
+});
+
+document.addEventListener("keydown", (e) => {
+  if (lightbox.classList.contains("hidden")) return;
+  if (e.key === "Escape") closeLightbox();
+  if (e.key === "ArrowLeft") { lightboxIndex = (lightboxIndex - 1 + galleryPhotos.length) % galleryPhotos.length; updateLightbox(); }
+  if (e.key === "ArrowRight") { lightboxIndex = (lightboxIndex + 1) % galleryPhotos.length; updateLightbox(); }
+});
 
 // ============================================================
 // Marqueurs
