@@ -147,23 +147,27 @@ function initMap() {
     minZoom: 1.5,
     maxPitch: 85,
     maxZoom: 19,
+    fadeDuration: 0,
+    maxTileCacheSize: 50,
+    pixelRatio: Math.min(devicePixelRatio, 2),
   });
 
   mapInstance.on("style.load", () => {
     mapInstance.setProjection({ type: "globe" });
   });
 
-  // Rotation lente
-  const AUTO_ROTATE_SPEED = 3;
+  // Rotation lente — uniquement en vue dézoomée
+  const AUTO_ROTATE_SPEED = 2;
   let autoRotate = true;
   let idleTimer = null;
+  let rotationFrame = null;
 
   function pauseRotation() {
     clearTimeout(idleTimer);
     autoRotate = false;
     idleTimer = setTimeout(() => {
       autoRotate = true;
-    }, 3000);
+    }, 4000);
   }
 
   ["mousedown", "touchstart", "wheel"].forEach((evt) =>
@@ -175,14 +179,14 @@ function initMap() {
   function rotateGlobe(now) {
     const dt = (now - lastTime) / 1000;
     lastTime = now;
-    if (autoRotate && !mapInstance.isMoving()) {
+    if (autoRotate && !mapInstance.isMoving() && mapInstance.getZoom() < 4) {
       const center = mapInstance.getCenter();
       center.lng -= AUTO_ROTATE_SPEED * dt;
-      mapInstance.setCenter(center);
+      mapInstance.jumpTo({ center });
     }
-    requestAnimationFrame(rotateGlobe);
+    rotationFrame = requestAnimationFrame(rotateGlobe);
   }
-  requestAnimationFrame(rotateGlobe);
+  rotationFrame = requestAnimationFrame(rotateGlobe);
 }
 
 // ============================================================
