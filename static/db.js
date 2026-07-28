@@ -4,12 +4,12 @@
 // ============================================================
 
 const DB_NAME = "pictrip";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 function openDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
+    req.onupgradeneeded = (e) => {
       const db = req.result;
       if (!db.objectStoreNames.contains("trips")) {
         db.createObjectStore("trips", { keyPath: "id" });
@@ -47,7 +47,6 @@ export async function createTrip(name) {
 
 export async function deleteTrip(tripId) {
   const db = await openDB();
-  // Supprimer les photos du voyage
   const photos = await getPhotosByTrip(tripId);
   const tx = db.transaction(["trips", "photos"], "readwrite");
   tx.objectStore("trips").delete(tripId);
@@ -78,7 +77,7 @@ export async function getAllPhotos() {
   });
 }
 
-export async function addPhoto(tripId, file, coords) {
+export async function addPhoto(tripId, file, coords, takenAt) {
   const photo = {
     id: crypto.randomUUID(),
     tripId,
@@ -88,6 +87,7 @@ export async function addPhoto(tripId, file, coords) {
     has_gps: !!coords,
     lat: coords ? coords.lat : null,
     lng: coords ? coords.lng : null,
+    takenAt: takenAt || null,
     addedAt: Date.now(),
   };
   const db = await openDB();

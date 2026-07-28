@@ -323,18 +323,25 @@ placeBtn.addEventListener("click", async () => {
 
   for (const file of pendingFiles) {
     let coords = null;
+    let takenAt = null;
     try {
-      const gps = await exifr.gps(file);
-      if (gps && gps.latitude && gps.longitude) {
-        coords = { lat: gps.latitude, lng: gps.longitude };
-        placed++;
+      const parsed = await exifr.parse(file, { gps: true, pick: ["DateTimeOriginal", "CreateDate", "latitude", "longitude"] });
+      if (parsed) {
+        if (parsed.latitude && parsed.longitude) {
+          coords = { lat: parsed.latitude, lng: parsed.longitude };
+          placed++;
+        } else {
+          noGps++;
+        }
+        const dt = parsed.DateTimeOriginal || parsed.CreateDate;
+        if (dt) takenAt = new Date(dt).getTime();
       } else {
         noGps++;
       }
     } catch {
       noGps++;
     }
-    await db.addPhoto(tripId, file, coords);
+    await db.addPhoto(tripId, file, coords, takenAt);
   }
 
   let msg = `${placed} localisée${placed > 1 ? "s" : ""}`;
@@ -635,6 +642,145 @@ function fitToTripMarkers(tripId) {
 }
 
 // ============================================================
+// Tracé de route + estimation transport
+// ============================================================
+
+const routeMarkers = [];
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function estimateTransport(distKm, timeDiffHours) {
+  if (distKm > 500) return "plane";
+  if (timeDiffHours && timeDiffHours > 0) {
+    const speed = distKm / timeDiffHours;
+    if (speed > 300) return "plane";
+    if (speed > 80) return "train";
+    if (speed > 2) return "car";
+    return "walk";
+  }
+  if (distKm > 300) return "plane";
+  if (distKm > 50) return "car";
+  if (distKm > 2) return "car";
+  return "walk";
+}
+
+const transportIcons = {
+  plane: "✈️",
+  train: "🚆",
+  car: "🚗",
+  walk: "🚶",
+};
+
+const transportColors = {
+  plane: "#4aa3ff",
+  train: "#f59e0b",
+  car: "#10b981",
+  walk: "#a78bfa",
+};
+
+function generateArc(start, end, numPoints) {
+  const coords = [];
+  for (let i = 0; i <= numPoints; i++) {
+    const t = i / numPoints;
+    const lat = start[1] + t * (end[1] - start[1]);
+    const lng = start[0] + t * (end[0] - start[0]);
+    const alt = Math.sin(t * Math.PI) * 0.15 * haversineKm(start[1], start[0], end[1], end[0]) / 100;
+    coords.push([lng + alt * 0.01, lat]);
+  }
+  return coords;
+}
+
+async function drawTripRoute(tripId) {
+  clearTripRoute();
+
+  const photos = await db.getPhotosByTrip(tripId);
+  const gpsPhotos = photos
+    .filter((p) => p.has_gps)
+    .sort((a, b) => {
+      if (a.takenAt && b.takenAt) return a.takenAt - b.takenAt;
+      if (a.takenAt) return -1;
+      if (b.takenAt) return 1;
+      return a.addedAt - b.addedAt;
+    });
+
+  if (gpsPhotos.length < 2) return;
+
+  for (let i = 0; i < gpsPhotos.length - 1; i++) {
+    const from = gpsPhotos[i];
+    const to = gpsPhotos[i + 1];
+    const dist = haversineKm(from.lat, from.lng, to.lat, to.lng);
+
+    let timeDiff = null;
+    if (from.takenAt && to.takenAt) {
+      timeDiff = (to.takenAt - from.takenAt) / (1000 * 60 * 60);
+    }
+
+    const transport = estimateTransport(dist, timeDiff);
+    const color = transportColors[transport];
+    const sourceId = `route-${tripId}-${i}`;
+    const layerId = `route-layer-${tripId}-${i}`;
+
+    let lineCoords;
+    if (transport === "plane") {
+      lineCoords = generateArc([from.lng, from.lat], [to.lng, to.lat], 40);
+    } else {
+      lineCoords = [[from.lng, from.lat], [to.lng, to.lat]];
+    }
+
+    mapInstance.addSource(sourceId, {
+      type: "geojson",
+      data: {
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: lineCoords },
+      },
+    });
+
+    mapInstance.addLayer({
+      id: layerId,
+      type: "line",
+      source: sourceId,
+      paint: {
+        "line-color": color,
+        "line-width": transport === "plane" ? 2.5 : 3.5,
+        "line-opacity": 0.85,
+        "line-dasharray": transport === "plane" ? [4, 4] : [1],
+      },
+    });
+
+    const midIdx = Math.floor(lineCoords.length / 2);
+    const midPoint = lineCoords[midIdx];
+
+    const iconEl = document.createElement("div");
+    iconEl.className = "transport-icon";
+    iconEl.style.background = color;
+    iconEl.textContent = transportIcons[transport];
+
+    const marker = new maplibregl.Marker({ element: iconEl })
+      .setLngLat(midPoint)
+      .addTo(mapInstance);
+    routeMarkers.push({ marker, sourceId, layerId });
+  }
+}
+
+function clearTripRoute() {
+  routeMarkers.forEach(({ marker, sourceId, layerId }) => {
+    marker.remove();
+    if (mapInstance.getLayer(layerId)) mapInstance.removeLayer(layerId);
+    if (mapInstance.getSource(sourceId)) mapInstance.removeSource(sourceId);
+  });
+  routeMarkers.length = 0;
+}
+
+// ============================================================
 // Mode voyage (globe filtré)
 // ============================================================
 
@@ -663,6 +809,7 @@ function showTripOnGlobe(tripId, tripName) {
   });
 
   fitToTripMarkers(tripId);
+  drawTripRoute(tripId);
 }
 
 function exitTripView() {
@@ -672,6 +819,8 @@ function exitTripView() {
   fabStack.classList.remove("hidden");
   overlay.classList.remove("hidden");
   userBtn.classList.remove("hidden");
+
+  clearTripRoute();
 
   allMarkers.forEach((m) => {
     m.getElement().style.display = "";
