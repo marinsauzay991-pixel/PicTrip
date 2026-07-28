@@ -139,16 +139,30 @@ checkAuth();
 function initMap() {
   if (mapInstance) return;
 
+  const rasterStyle = {
+    version: 8,
+    sources: {
+      "carto": {
+        type: "raster",
+        tiles: ["https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png"],
+        tileSize: 256,
+        attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+        maxzoom: 19,
+      },
+    },
+    layers: [{ id: "carto-tiles", type: "raster", source: "carto" }],
+  };
+
   mapInstance = new maplibregl.Map({
     container: "map",
-    style: "https://tiles.openfreemap.org/styles/positron",
+    style: rasterStyle,
     center: [2.35, 48.86],
     zoom: 1.5,
     minZoom: 1.5,
     maxPitch: 60,
-    maxZoom: 18,
+    maxZoom: 19,
     fadeDuration: 0,
-    maxTileCacheSize: 30,
+    maxTileCacheSize: 50,
     pixelRatio: 1,
     renderWorldCopies: false,
     antialias: false,
@@ -526,9 +540,21 @@ function initLightboxMap(lat, lng) {
     lightboxMap.remove();
     lightboxMarker = null;
   }
+  const rasterStyleMini = {
+    version: 8,
+    sources: {
+      "carto": {
+        type: "raster",
+        tiles: ["https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png"],
+        tileSize: 256,
+        maxzoom: 19,
+      },
+    },
+    layers: [{ id: "carto-tiles", type: "raster", source: "carto" }],
+  };
   lightboxMap = new maplibregl.Map({
     container: "lightbox-map",
-    style: "https://tiles.openfreemap.org/styles/liberty",
+    style: rasterStyleMini,
     center: [lng, lat],
     zoom: 12,
     interactive: true,
