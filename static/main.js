@@ -335,13 +335,6 @@ placeBtn.addEventListener("click", async () => {
     } catch {
       noGps++;
     }
-    try {
-      const meta = await exifr.parse(file, ["DateTimeOriginal", "CreateDate"]);
-      if (meta) {
-        const dt = meta.DateTimeOriginal || meta.CreateDate;
-        if (dt) takenAt = new Date(dt).getTime();
-      }
-    } catch {}
     await db.addPhoto(tripId, file, coords, takenAt);
   }
 
