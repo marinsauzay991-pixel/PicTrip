@@ -325,9 +325,9 @@ placeBtn.addEventListener("click", async () => {
   for (const file of pendingFiles) {
     let coords = null;
     try {
-      const exif = await exifr.parse(file, { gps: true, pick: ["latitude", "longitude"] });
-      if (exif && exif.latitude && exif.longitude) {
-        coords = { lat: exif.latitude, lng: exif.longitude };
+      const gps = await exifr.gps(file);
+      if (gps && gps.latitude && gps.longitude) {
+        coords = { lat: gps.latitude, lng: gps.longitude };
         placed++;
       } else {
         noGps++;
