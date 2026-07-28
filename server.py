@@ -43,7 +43,10 @@ def index():
 
 @app.route("/<path:filename>")
 def static_files(filename):
-    return send_from_directory("static", filename)
+    response = send_from_directory("static", filename)
+    if filename.endswith((".css", ".js")):
+        response.headers["Cache-Control"] = "public, max-age=3600"
+    return response
 
 
 # ─── Auth API ───
