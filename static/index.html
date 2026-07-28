@@ -47,7 +47,6 @@
 
     <div id="overlay">
       <h1>PicTrip</h1>
-      <p class="hint">Glisse pour tourner · molette pour zoomer</p>
     </div>
 
     <!-- Bouton retour (mode voyage) -->
@@ -122,7 +121,12 @@
       <button id="lightbox-close" aria-label="Fermer">&times;</button>
       <button id="lightbox-prev" aria-label="Précédent">&#8249;</button>
       <button id="lightbox-next" aria-label="Suivant">&#8250;</button>
-      <img id="lightbox-img" src="" alt="" />
+      <div id="lightbox-content">
+        <img id="lightbox-img" src="" alt="" />
+        <div id="lightbox-map-container" class="hidden">
+          <div id="lightbox-map"></div>
+        </div>
+      </div>
       <div id="lightbox-caption"></div>
     </div>
 

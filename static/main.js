@@ -153,8 +153,6 @@ function initMap() {
     mapInstance.setProjection({ type: "globe" });
   });
 
-  mapInstance.addControl(new maplibregl.NavigationControl(), "top-right");
-
   // Rotation lente
   const AUTO_ROTATE_SPEED = 3;
   let autoRotate = true;
@@ -476,9 +474,12 @@ const lightboxCaption = document.getElementById("lightbox-caption");
 const lightboxClose = document.getElementById("lightbox-close");
 const lightboxPrev = document.getElementById("lightbox-prev");
 const lightboxNext = document.getElementById("lightbox-next");
+const lightboxMapContainer = document.getElementById("lightbox-map-container");
 
 let galleryPhotos = [];
 let lightboxIndex = 0;
+let lightboxMap = null;
+let lightboxMarker = null;
 
 async function openGallery(tripId, tripName) {
   const photos = await db.getPhotosByTrip(tripId);
@@ -507,21 +508,56 @@ async function openGallery(tripId, tripName) {
 function openLightbox(index) {
   if (galleryPhotos.length === 0) return;
   lightboxIndex = index;
-  updateLightbox();
   lightbox.classList.remove("hidden");
+  updateLightbox(true);
 }
 
 function closeLightbox() {
   lightbox.classList.add("hidden");
+  if (lightboxMap) {
+    lightboxMap.remove();
+    lightboxMap = null;
+    lightboxMarker = null;
+  }
 }
 
-function updateLightbox() {
+function initLightboxMap(lat, lng) {
+  if (lightboxMap) {
+    lightboxMap.remove();
+    lightboxMarker = null;
+  }
+  lightboxMap = new maplibregl.Map({
+    container: "lightbox-map",
+    style: "https://tiles.openfreemap.org/styles/liberty",
+    center: [lng, lat],
+    zoom: 12,
+    interactive: true,
+    attributionControl: false,
+  });
+  lightboxMarker = new maplibregl.Marker({ color: "#4aa3ff" })
+    .setLngLat([lng, lat])
+    .addTo(lightboxMap);
+}
+
+function updateLightbox(firstOpen) {
   const photo = galleryPhotos[lightboxIndex];
   const url = db.getPhotoURL(photo);
   lightboxImg.src = url;
   lightboxCaption.textContent = `${photo.name}  ·  ${lightboxIndex + 1} / ${galleryPhotos.length}`;
   lightboxPrev.style.display = galleryPhotos.length > 1 ? "" : "none";
   lightboxNext.style.display = galleryPhotos.length > 1 ? "" : "none";
+
+  if (photo.has_gps) {
+    lightboxMapContainer.classList.remove("hidden");
+    if (firstOpen || !lightboxMap) {
+      setTimeout(() => initLightboxMap(photo.lat, photo.lng), 50);
+    } else {
+      lightboxMarker.setLngLat([photo.lng, photo.lat]);
+      lightboxMap.flyTo({ center: [photo.lng, photo.lat], zoom: 12, duration: 1200 });
+    }
+  } else {
+    lightboxMapContainer.classList.add("hidden");
+  }
 }
 
 lightboxClose.addEventListener("click", closeLightbox);
