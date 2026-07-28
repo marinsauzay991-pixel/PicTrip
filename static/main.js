@@ -674,17 +674,10 @@ function estimateTransport(distKm, timeDiffHours) {
 }
 
 const transportIcons = {
-  plane: "✈️",
-  train: "🚆",
+  plane: "✈",
+  train: "🚌",
   car: "🚗",
   walk: "🚶",
-};
-
-const transportColors = {
-  plane: "#4aa3ff",
-  train: "#f59e0b",
-  car: "#10b981",
-  walk: "#a78bfa",
 };
 
 function generateArc(start, end, numPoints) {
@@ -737,8 +730,8 @@ async function drawTripRoute(tripId) {
     }
 
     try {
-      if (mapInstance.getSource(sourceId)) mapInstance.removeSource(sourceId);
       if (mapInstance.getLayer(layerId)) mapInstance.removeLayer(layerId);
+      if (mapInstance.getSource(sourceId)) mapInstance.removeSource(sourceId);
 
       mapInstance.addSource(sourceId, {
         type: "geojson",
@@ -753,10 +746,10 @@ async function drawTripRoute(tripId) {
         type: "line",
         source: sourceId,
         paint: {
-          "line-color": color,
-          "line-width": transport === "plane" ? 3 : 4,
-          "line-opacity": 0.9,
-          "line-dasharray": transport === "plane" ? [4, 4] : [1],
+          "line-color": "#ffffff",
+          "line-width": 2.5,
+          "line-opacity": 0.8,
+          "line-dasharray": transport === "plane" ? [6, 4] : [1],
         },
       });
     } catch (err) {
@@ -769,7 +762,6 @@ async function drawTripRoute(tripId) {
 
     const iconEl = document.createElement("div");
     iconEl.className = "transport-icon";
-    iconEl.style.background = color;
     iconEl.textContent = transportIcons[transport];
 
     const marker = new maplibregl.Marker({ element: iconEl })
