@@ -9,6 +9,7 @@ let trips = [];
 const allMarkers = [];
 let mapInstance = null;
 let inTripView = false;
+let rotateSpeed = 3;
 
 // ============================================================
 // Auth
@@ -153,8 +154,7 @@ function initMap() {
     mapInstance.setProjection({ type: "globe" });
   });
 
-  // Rotation lente
-  const AUTO_ROTATE_SPEED = 3;
+  // Rotation
   let autoRotate = true;
   let idleTimer = null;
 
@@ -177,7 +177,7 @@ function initMap() {
     lastTime = now;
     if (autoRotate && !mapInstance.isMoving()) {
       const center = mapInstance.getCenter();
-      center.lng -= AUTO_ROTATE_SPEED * dt;
+      center.lng -= rotateSpeed * dt;
       mapInstance.setCenter(center);
     }
     requestAnimationFrame(rotateGlobe);
@@ -799,6 +799,9 @@ function showTripOnGlobe(tripId, tripName) {
   overlay.classList.add("hidden");
   userBtn.classList.add("hidden");
 
+  // Accélérer la rotation pendant le chargement
+  rotateSpeed = 30;
+
   allMarkers.forEach((m) => {
     const el = m.getElement();
     if (m._tripId === tripId) {
@@ -810,14 +813,22 @@ function showTripOnGlobe(tripId, tripName) {
 
   fitToTripMarkers(tripId);
 
-  // Attendre que la carte soit stable avant de tracer les routes
-  mapInstance.once("idle", () => {
-    drawTripRoute(tripId);
+  mapInstance.once("idle", async () => {
+    await drawTripRoute(tripId);
+    // Ralentir progressivement
+    const slowDown = setInterval(() => {
+      rotateSpeed *= 0.85;
+      if (rotateSpeed <= 3) {
+        rotateSpeed = 3;
+        clearInterval(slowDown);
+      }
+    }, 50);
   });
 }
 
 function exitTripView() {
   inTripView = false;
+  rotateSpeed = 3;
   tripViewOverlay.classList.add("hidden");
   backBtn.classList.add("hidden");
   fabStack.classList.remove("hidden");
