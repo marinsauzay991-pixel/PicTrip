@@ -139,50 +139,31 @@ checkAuth();
 function initMap() {
   if (mapInstance) return;
 
-  const rasterStyle = {
-    version: 8,
-    sources: {
-      "carto": {
-        type: "raster",
-        tiles: ["https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png"],
-        tileSize: 256,
-        attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
-        maxzoom: 19,
-      },
-    },
-    layers: [{ id: "carto-tiles", type: "raster", source: "carto" }],
-  };
-
   mapInstance = new maplibregl.Map({
     container: "map",
-    style: rasterStyle,
+    style: "https://tiles.openfreemap.org/styles/liberty",
     center: [2.35, 48.86],
     zoom: 1.5,
     minZoom: 1.5,
-    maxPitch: 60,
     maxZoom: 19,
-    fadeDuration: 0,
-    maxTileCacheSize: 50,
-    pixelRatio: 1,
-    renderWorldCopies: false,
-    antialias: false,
+    maxPitch: 85,
   });
 
   mapInstance.on("style.load", () => {
     mapInstance.setProjection({ type: "globe" });
   });
 
-  // Rotation lente via setInterval (pas de rAF en continu)
+  // Rotation lente
+  const AUTO_ROTATE_SPEED = 3;
   let autoRotate = true;
   let idleTimer = null;
-  const ROTATE_INTERVAL = 50; // 20fps
 
   function pauseRotation() {
     clearTimeout(idleTimer);
     autoRotate = false;
     idleTimer = setTimeout(() => {
       autoRotate = true;
-    }, 5000);
+    }, 3000);
   }
 
   ["mousedown", "touchstart", "wheel"].forEach((evt) =>
@@ -190,13 +171,18 @@ function initMap() {
   );
   mapInstance.on("dragstart", pauseRotation);
 
-  setInterval(() => {
-    if (autoRotate && !mapInstance.isMoving() && mapInstance.getZoom() < 3.5) {
+  let lastTime = performance.now();
+  function rotateGlobe(now) {
+    const dt = (now - lastTime) / 1000;
+    lastTime = now;
+    if (autoRotate && !mapInstance.isMoving()) {
       const center = mapInstance.getCenter();
-      center.lng -= 0.08;
-      mapInstance.jumpTo({ center });
+      center.lng -= AUTO_ROTATE_SPEED * dt;
+      mapInstance.setCenter(center);
     }
-  }, ROTATE_INTERVAL);
+    requestAnimationFrame(rotateGlobe);
+  }
+  requestAnimationFrame(rotateGlobe);
 }
 
 // ============================================================
@@ -540,21 +526,9 @@ function initLightboxMap(lat, lng) {
     lightboxMap.remove();
     lightboxMarker = null;
   }
-  const rasterStyleMini = {
-    version: 8,
-    sources: {
-      "carto": {
-        type: "raster",
-        tiles: ["https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png"],
-        tileSize: 256,
-        maxzoom: 19,
-      },
-    },
-    layers: [{ id: "carto-tiles", type: "raster", source: "carto" }],
-  };
   lightboxMap = new maplibregl.Map({
     container: "lightbox-map",
-    style: rasterStyleMini,
+    style: "https://tiles.openfreemap.org/styles/liberty",
     center: [lng, lat],
     zoom: 12,
     interactive: true,
