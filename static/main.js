@@ -325,22 +325,23 @@ placeBtn.addEventListener("click", async () => {
     let coords = null;
     let takenAt = null;
     try {
-      const parsed = await exifr.parse(file, { gps: true, pick: ["DateTimeOriginal", "CreateDate", "latitude", "longitude"] });
-      if (parsed) {
-        if (parsed.latitude && parsed.longitude) {
-          coords = { lat: parsed.latitude, lng: parsed.longitude };
-          placed++;
-        } else {
-          noGps++;
-        }
-        const dt = parsed.DateTimeOriginal || parsed.CreateDate;
-        if (dt) takenAt = new Date(dt).getTime();
+      const gps = await exifr.gps(file);
+      if (gps && gps.latitude && gps.longitude) {
+        coords = { lat: gps.latitude, lng: gps.longitude };
+        placed++;
       } else {
         noGps++;
       }
     } catch {
       noGps++;
     }
+    try {
+      const meta = await exifr.parse(file, ["DateTimeOriginal", "CreateDate"]);
+      if (meta) {
+        const dt = meta.DateTimeOriginal || meta.CreateDate;
+        if (dt) takenAt = new Date(dt).getTime();
+      }
+    } catch {}
     await db.addPhoto(tripId, file, coords, takenAt);
   }
 
