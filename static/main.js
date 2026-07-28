@@ -141,33 +141,34 @@ function initMap() {
 
   mapInstance = new maplibregl.Map({
     container: "map",
-    style: "https://tiles.openfreemap.org/styles/liberty",
+    style: "https://tiles.openfreemap.org/styles/positron",
     center: [2.35, 48.86],
     zoom: 1.5,
     minZoom: 1.5,
-    maxPitch: 85,
-    maxZoom: 19,
+    maxPitch: 60,
+    maxZoom: 18,
     fadeDuration: 0,
-    maxTileCacheSize: 50,
-    pixelRatio: Math.min(devicePixelRatio, 2),
+    maxTileCacheSize: 30,
+    pixelRatio: 1,
+    renderWorldCopies: false,
+    antialias: false,
   });
 
   mapInstance.on("style.load", () => {
     mapInstance.setProjection({ type: "globe" });
   });
 
-  // Rotation lente — uniquement en vue dézoomée
-  const AUTO_ROTATE_SPEED = 2;
+  // Rotation lente via setInterval (pas de rAF en continu)
   let autoRotate = true;
   let idleTimer = null;
-  let rotationFrame = null;
+  const ROTATE_INTERVAL = 50; // 20fps
 
   function pauseRotation() {
     clearTimeout(idleTimer);
     autoRotate = false;
     idleTimer = setTimeout(() => {
       autoRotate = true;
-    }, 4000);
+    }, 5000);
   }
 
   ["mousedown", "touchstart", "wheel"].forEach((evt) =>
@@ -175,18 +176,13 @@ function initMap() {
   );
   mapInstance.on("dragstart", pauseRotation);
 
-  let lastTime = performance.now();
-  function rotateGlobe(now) {
-    const dt = (now - lastTime) / 1000;
-    lastTime = now;
-    if (autoRotate && !mapInstance.isMoving() && mapInstance.getZoom() < 4) {
+  setInterval(() => {
+    if (autoRotate && !mapInstance.isMoving() && mapInstance.getZoom() < 3.5) {
       const center = mapInstance.getCenter();
-      center.lng -= AUTO_ROTATE_SPEED * dt;
+      center.lng -= 0.08;
       mapInstance.jumpTo({ center });
     }
-    rotationFrame = requestAnimationFrame(rotateGlobe);
-  }
-  rotationFrame = requestAnimationFrame(rotateGlobe);
+  }, ROTATE_INTERVAL);
 }
 
 // ============================================================
