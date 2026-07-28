@@ -615,6 +615,29 @@ body {
   color: #fff;
 }
 
+.trip-delete-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 100, 100, 0.2);
+  background: rgba(255, 100, 100, 0.06);
+  color: rgba(255, 120, 120, 0.6);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+  font-size: 20px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.trip-delete-btn:hover {
+  background: rgba(255, 80, 80, 0.18);
+  color: rgba(255, 100, 100, 1);
+}
+
 .empty-msg {
   font-size: 14px;
   color: rgba(255, 255, 255, 0.35);

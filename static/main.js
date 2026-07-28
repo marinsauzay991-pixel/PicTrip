@@ -430,7 +430,20 @@ async function renderTripsPanel() {
       openPanel(uploadPanel);
     });
 
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "trip-delete-btn";
+    deleteBtn.innerHTML = "×";
+    deleteBtn.title = "Supprimer ce voyage";
+    deleteBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (!confirm(`Supprimer "${trip.name}" et toutes ses photos ?`)) return;
+      await db.deleteTrip(trip.id);
+      await loadTrips();
+      renderTripsPanel();
+    });
+
     card.appendChild(addMoreBtn);
+    card.appendChild(deleteBtn);
     tripsList.appendChild(card);
   }
 }
